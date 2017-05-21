@@ -2,14 +2,17 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	s "strings"
 
 	"github.com/r3labs/sse"
 )
 
-var println = fmt.Println
+// Probably not best practice but is conventient
+// var println = fmt.Println
 
 func check(e error) {
 	if e != nil {
@@ -47,6 +50,19 @@ func parseCreds(lines []string) map[string]string {
 	return settings
 }
 
+//EventsReponse is the response of the Particle events API
+type EventsResponse struct {
+	Data        string `json:"data"`
+	PublishedAt string `json:"published_at"`
+	CoreID      string `json:"coreid"`
+}
+
+//InfluxWriteString
+type InfluxWriteString struct {
+	// Must conform to:
+	// weather,location=us-midwest,season=summer temperature=82 1465839830100400200
+}
+
 func main() {
 	// Where the config file is
 	credPath := "/Users/eat_sleep_live_skateboarding/Code/go/credentials.txt"
@@ -60,27 +76,23 @@ func main() {
 	// parse values from config
 	_map, _ := readLines(credPath)
 	settings := parseCreds(_map)
-	println(settings)
+	fmt.Println(settings)
 
 	// SSE begins here
 	sseURL = sseURL + settings["api-key"]
-	println(sseURL)
+	fmt.Println(sseURL)
 
 	client := sse.NewClient(sseURL)
-	client.Subscribe("messages", func(msg *sse.Event) {
-		// Got some data!
-		println(string(msg.Event))
-		println(string(msg.Data))
+	go client.Subscribe("messages", func(msg *sse.Event) {
+		str := string(msg.Data)
+		res := EventsResponse{}
+		json.Unmarshal([]byte(str), &res)
+		fmt.Println(string(msg.Event))
+		fmt.Println(reflect.TypeOf(string(msg.Event)))
+		// fmt.Println(reflect.TypeOf(msg.Event))
+		// fmt.Println(res)
 	})
 
-	// events := make(chan *sse.Event)
-	//
-	// client := sse.NewClient(sseURL)
-	// client.SubscribeChan("messages", events)
-
-	// for {
-	// 	println("checking")
-	// 	event := <-events
-	// 	println(event)
-	// }
+	var input string
+	fmt.Scanln(&input)
 }
