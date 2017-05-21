@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	s "strings"
+
+	"github.com/r3labs/sse"
 )
 
 var println = fmt.Println
@@ -35,8 +37,12 @@ func parseCreds(lines []string) map[string]string {
 	// results := make([]string, 2)
 	for _, line := range lines {
 		// var res []string
-		res := s.Split(line, "=")
-		settings[res[0]] = res[1]
+		if s.HasPrefix(line, "#") {
+			// ignore it
+		} else {
+			res := s.Split(line, "=")
+			settings[res[0]] = res[1]
+		}
 	}
 	return settings
 }
@@ -45,7 +51,36 @@ func main() {
 	// Where the config file is
 	credPath := "/Users/eat_sleep_live_skateboarding/Code/go/credentials.txt"
 
+	// The SSE url
+	sseURL := "https://api.particle.io/v1/devices/events?access_token="
+
+	// Where we will store our sensor info
+	//var sensors []string
+
 	// parse values from config
 	_map, _ := readLines(credPath)
-	println(parseCreds(_map))
+	settings := parseCreds(_map)
+	println(settings)
+
+	// SSE begins here
+	sseURL = sseURL + settings["api-key"]
+	println(sseURL)
+
+	client := sse.NewClient(sseURL)
+	client.Subscribe("messages", func(msg *sse.Event) {
+		// Got some data!
+		println(string(msg.Event))
+		println(string(msg.Data))
+	})
+
+	// events := make(chan *sse.Event)
+	//
+	// client := sse.NewClient(sseURL)
+	// client.SubscribeChan("messages", events)
+
+	// for {
+	// 	println("checking")
+	// 	event := <-events
+	// 	println(event)
+	// }
 }
