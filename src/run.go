@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 
 	"github.com/r3labs/sse"
@@ -129,9 +130,29 @@ func main() {
 	fmt.Println(sseURL)
 
 	client := sse.NewClient(sseURL)
-	go client.Subscribe("messages", func(msg *sse.Event) {
+	client.Subscribe("messages", func(msg *sse.Event) {
+		fmt.Println("***")
+		fmt.Println("raw")
 		fmt.Println(string(msg.Event))
-		fmt.Println(EventsAPIJSON(msg.Data))
+		fmt.Println(string(msg.Data))
+		APIres := EventsAPIJSON(msg.Data)
+		if len(APIres) == 0 {
+			fmt.Println("if ZERO")
+			// do nothing
+		} else if len(APIres) < 3 {
+			fmt.Println("if < THREE")
+			for k, v := range APIres {
+				fmt.Printf("key[%s] value[%s] type:%s\n", k, v, reflect.TypeOf(v))
+			}
+		} else {
+			fmt.Println("ELSE")
+			fmt.Println(string(msg.Event))
+			for k, v := range APIres {
+				fmt.Printf("key[%s] value[%s] type:%s\n", k, v, reflect.TypeOf(v))
+			}
+			// APIres["event"] = string(msg.Event)
+			fmt.Println("")
+		}
 	})
 
 	var input string
