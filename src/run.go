@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 
 	"github.com/r3labs/sse"
@@ -14,8 +13,10 @@ import (
 // Probably not best practice but is conventient
 // var println = fmt.Println
 
+// JSONableSlice is the array
 type JSONableSlice []uint8
 
+// MarshalJSON is for marshalling jsons from the sse client
 func (u JSONableSlice) MarshalJSON() ([]byte, error) {
 	var result string
 	if u == nil {
@@ -110,6 +111,20 @@ func EventsAPIJSON(u []uint8) map[string]interface{} {
 	return formattedJSON
 }
 
+// parses Particle API json
+func AddToEventMap(u []byte, m map[string]interface{}) map[string]interface{} {
+	s := string(u)
+	err := json.Unmarshal([]byte(s), &m)
+	if err != nil {
+		if err.Error() == "unexpected end of JSON input" {
+			// pass
+		} else {
+			panic(err)
+		}
+	}
+	return m
+}
+
 func main() {
 	// Where the config file is
 	credPath := "/Users/eat_sleep_live_skateboarding/Code/go/credentials.txt"
@@ -130,28 +145,28 @@ func main() {
 	fmt.Println(sseURL)
 
 	client := sse.NewClient(sseURL)
+	/* This will return either:
+	event, nil
+	or
+	nil, data
+	...
+	if event is not empty make it the first value in a new map
+	if data is not empty add it's values to the
+	*/
 	client.Subscribe("messages", func(msg *sse.Event) {
-		fmt.Println("***")
-		fmt.Println("raw")
-		fmt.Println(string(msg.Event))
-		fmt.Println(string(msg.Data))
-		APIres := EventsAPIJSON(msg.Data)
-		if len(APIres) == 0 {
-			fmt.Println("if ZERO")
-			// do nothing
-		} else if len(APIres) < 3 {
-			fmt.Println("if < THREE")
-			for k, v := range APIres {
-				fmt.Printf("key[%s] value[%s] type:%s\n", k, v, reflect.TypeOf(v))
-			}
+		SSEres := make(map[string]interface{})
+		if msg.Event != nil {
+			// Create new object
+			fmt.Print("***")
+			fmt.Println(" " + string(msg.Event))
+			SSEres["event"] = string(msg.Event)
+		} else if msg.Data != nil {
+			AddToEventMap(msg.Data, SSEres)
+			fmt.Println(SSEres)
+			// add to previous object.
+			// finalize
 		} else {
-			fmt.Println("ELSE")
-			fmt.Println(string(msg.Event))
-			for k, v := range APIres {
-				fmt.Printf("key[%s] value[%s] type:%s\n", k, v, reflect.TypeOf(v))
-			}
-			// APIres["event"] = string(msg.Event)
-			fmt.Println("")
+			//
 		}
 	})
 
