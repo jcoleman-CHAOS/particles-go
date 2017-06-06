@@ -10,9 +10,6 @@ import (
 	"github.com/r3labs/sse"
 )
 
-// Probably not best practice but is conventient
-// var println = fmt.Println
-
 // JSONableSlice is the array
 type JSONableSlice []uint8
 
@@ -68,7 +65,7 @@ func parseCreds(lines []string) map[string]string {
 	return settings
 }
 
-//EventsReponse is the response of the Particle events API.
+// EventsReponse is the response of the Particle events API.
 type EventsResponse struct {
 	Data        string `json:"data"`
 	PublishedAt string `json:"published_at"`
@@ -96,7 +93,7 @@ type GenericSensor struct {
 	PublishRate int64 //milliseconds
 }
 
-// parses Particle API json
+// EventsAPIJSON parses Particle API json
 func EventsAPIJSON(u []uint8) map[string]interface{} {
 	s := string(u)
 	var formattedJSON map[string]interface{}
@@ -111,7 +108,7 @@ func EventsAPIJSON(u []uint8) map[string]interface{} {
 	return formattedJSON
 }
 
-// parses Particle API json
+// AddToEventMap parses Particle API json
 func AddToEventMap(u []byte, m map[string]interface{}) map[string]interface{} {
 	s := string(u)
 	err := json.Unmarshal([]byte(s), &m)
@@ -144,31 +141,31 @@ func main() {
 	sseURL = sseURL + settings["api-key"]
 	fmt.Println(sseURL)
 
+	// Create the channel to store SSEresponses
+	SSEresp := make(chan string, 2)
+	counter := 0
+	SSEchanIsReady := make(chan bool)
+
+	// SSEres := make(map[string]interface{})
 	client := sse.NewClient(sseURL)
-	/* This will return either:
-	event, nil
-	or
-	nil, data
-	...
-	if event is not empty make it the first value in a new map
-	if data is not empty add it's values to the
-	*/
-	client.Subscribe("messages", func(msg *sse.Event) {
-		SSEres := make(map[string]interface{})
+	go client.Subscribe("messages", func(msg *sse.Event) {
 		if msg.Event != nil {
-			// Create new object
-			fmt.Print("***")
-			fmt.Println(" " + string(msg.Event))
-			SSEres["event"] = string(msg.Event)
+			SSEresp <- string(msg.Event)
+			counter = 0
 		} else if msg.Data != nil {
-			AddToEventMap(msg.Data, SSEres)
-			fmt.Println(SSEres)
-			// add to previous object.
-			// finalize
-		} else {
-			//
+			SSEresp <- string(msg.Data)
+			counter = 1
+			SSEchanIsReady <- true
 		}
 	})
+
+	go func() {
+		if <-SSEchanIsReady {
+			fmt.Println("GROUP")
+			fmt.Println("A: " + <-SSEresp)
+			fmt.Println("B: " + <-SSEresp)
+		}
+	}()
 
 	var input string
 	fmt.Scanln(&input)
