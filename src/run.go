@@ -65,13 +65,6 @@ func parseCreds(lines []string) map[string]string {
 	return settings
 }
 
-// EventsReponse is the response of the Particle events API.
-type EventsResponse struct {
-	Data        string `json:"data"`
-	PublishedAt string `json:"published_at"`
-	CoreID      string `json:"coreid"`
-}
-
 //InfluxWriteString values.
 type InfluxWriteString struct {
 	// Must conform to:
@@ -93,25 +86,11 @@ type GenericSensor struct {
 	PublishRate int64 //milliseconds
 }
 
-// EventsAPIJSON parses Particle API json
-func EventsAPIJSON(u []uint8) map[string]interface{} {
-	s := string(u)
-	var formattedJSON map[string]interface{}
-	err := json.Unmarshal([]byte(s), &formattedJSON)
-	if err != nil {
-		if err.Error() == "unexpected end of JSON input" {
-			// pass
-		} else {
-			panic(err)
-		}
-	}
-	return formattedJSON
-}
-
 // AddToEventMap parses Particle API json
-func AddToEventMap(u []byte, m map[string]interface{}) map[string]interface{} {
-	s := string(u)
-	err := json.Unmarshal([]byte(s), &m)
+func combineEventAndData(se string, sd string) map[string]interface{} {
+	m := make(map[string]interface{})
+	m["event"] = se
+	err := json.Unmarshal([]byte(sd), &m)
 	if err != nil {
 		if err.Error() == "unexpected end of JSON input" {
 			// pass
@@ -160,10 +139,14 @@ func main() {
 	})
 
 	go func() {
-		if <-SSEchanIsReady {
-			fmt.Println("GROUP")
-			fmt.Println("A: " + <-SSEresp)
-			fmt.Println("B: " + <-SSEresp)
+		for {
+			if <-SSEchanIsReady {
+				fmt.Println("\n***")
+				res := combineEventAndData(<-SSEresp, <-SSEresp)
+				for k, v := range res {
+					fmt.Printf("%s: %s\n", k, v)
+				}
+			}
 		}
 	}()
 
