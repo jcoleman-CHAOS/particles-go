@@ -10,31 +10,6 @@ import (
 	"github.com/r3labs/sse"
 )
 
-// JSONableSlice is the array
-type JSONableSlice []uint8
-
-// MarshalJSON is for marshalling jsons from the sse client
-func (u JSONableSlice) MarshalJSON() ([]byte, error) {
-	var result string
-	if u == nil {
-		result = "null"
-	} else {
-		result = strings.Join(strings.Fields(fmt.Sprintf("%d", u)), ",")
-	}
-	return []byte(result), nil
-}
-
-type Test struct {
-	Name  string
-	Array JSONableSlice
-}
-
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
-}
-
 func readLines(path string) ([]string, error) {
 	file, err := os.Open(path)
 	if err != nil {
