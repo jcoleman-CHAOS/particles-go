@@ -4,11 +4,35 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
+	"reflect"
 	"strings"
 
 	"github.com/r3labs/sse"
 )
+
+//InfluxWriteString values.
+type InfluxWriteString struct {
+	// Must conform to:
+	// weather,location=us-midwest,season=summer temperature=82 1465839830100400200
+}
+
+//GenericSensor struct.
+type GenericSensor struct {
+	label string
+	phen  string //Phenomanon
+	unit  string
+
+	location   string  // Qualitatively
+	lat        float64 // as float
+	long       float64
+	Experiment string
+
+	Firmware    string
+	PublishRate int64 //milliseconds
+}
 
 func readLines(path string) ([]string, error) {
 	file, err := os.Open(path)
@@ -40,25 +64,44 @@ func parseCreds(lines []string) map[string]string {
 	return settings
 }
 
-//InfluxWriteString values.
-type InfluxWriteString struct {
-	// Must conform to:
-	// weather,location=us-midwest,season=summer temperature=82 1465839830100400200
+func urlResp(url string) []byte {
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Println("Error: " + err.Error())
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Body error" + err.Error())
+	}
+	return body
 }
 
-//GenericSensor struct.
-type GenericSensor struct {
-	label string
-	phen  string //Phenomanon
-	unit  string
+// This needs to be tested!
+func JSONtoMap(b []byte) map[string]interface{} {
+	m := make(map[string]interface{})
+	err := json.Unmarshal(b, &m)
+	if err != nil {
+		if err.Error() == "unexpected end of JSON input" {
+			// pass
+		} else {
+			panic(err)
+		}
+	}
+	return m
+}
 
-	location   string  // Qualitatively
-	lat        float64 // as float
-	long       float64
-	Experiment string
+func iterMap(m map[string]interface{}) {
+	for k, v := range m {
+		fmt.Printf("%s: %s", k, v)
+	}
+}
 
-	Firmware    string
-	PublishRate int64 //milliseconds
+func allParticlesCurl(token string) string {
+	// This is the device URL, contains info on all particles
+	devicesAPI := "https://api.particle.io/v1/devices/?access_token=" + token
+	resp := urlResp(devicesAPI)
+	return string(resp)
 }
 
 // AddToEventMap parses Particle API json
@@ -83,13 +126,18 @@ func main() {
 	// The SSE url
 	sseURL := "https://api.particle.io/v1/devices/events?access_token="
 
-	// Where we will store our sensor info
-	//var sensors []string
-
 	// parse values from config
 	_map, _ := readLines(credPath)
 	settings := parseCreds(_map)
 	fmt.Println(settings)
+
+	// check devices
+	devicesResp := allParticlesCurl(settings["api-key"])
+	fmt.Printf("The response is type: %s\n%s", reflect.TypeOf(devicesResp), devicesResp)
+
+	/* Pause */
+	var input string
+	fmt.Scanln(&input)
 
 	// SSE begins here
 	sseURL = sseURL + settings["api-key"]
@@ -125,6 +173,5 @@ func main() {
 		}
 	}()
 
-	var input string
 	fmt.Scanln(&input)
 }
