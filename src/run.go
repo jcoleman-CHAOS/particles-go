@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"reflect"
 	"strings"
 
 	"github.com/r3labs/sse"
@@ -77,10 +76,14 @@ func urlResp(url string) []byte {
 	return body
 }
 
+func ByteSlice(b []byte) []byte { return b }
+
 // This needs to be tested!
 func JSONtoMap(b []byte) map[string]interface{} {
 	m := make(map[string]interface{})
-	err := json.Unmarshal(b, &m)
+	s := string(b[1 : len(b)-1])
+	fmt.Println(s)
+	err := json.Unmarshal([]byte(s), &m)
 	if err != nil {
 		if err.Error() == "unexpected end of JSON input" {
 			// pass
@@ -97,11 +100,12 @@ func iterMap(m map[string]interface{}) {
 	}
 }
 
-func allParticlesCurl(token string) string {
+func allParticlesCurl(token string) []byte {
 	// This is the device URL, contains info on all particles
 	devicesAPI := "https://api.particle.io/v1/devices/?access_token=" + token
+	fmt.Printf("Checking: %s\n", devicesAPI)
 	resp := urlResp(devicesAPI)
-	return string(resp)
+	return resp
 }
 
 // AddToEventMap parses Particle API json
@@ -113,6 +117,7 @@ func combineEventAndData(se string, sd string) map[string]interface{} {
 		if err.Error() == "unexpected end of JSON input" {
 			// pass
 		} else {
+			fmt.Println("It died trying to CombineEventAndData responses")
 			panic(err)
 		}
 	}
@@ -131,12 +136,22 @@ func main() {
 	settings := parseCreds(_map)
 	fmt.Println(settings)
 
+	var input string
 	// check devices
 	devicesResp := allParticlesCurl(settings["api-key"])
-	fmt.Printf("The response is type: %s\n%s", reflect.TypeOf(devicesResp), devicesResp)
+	arrayObjs := make([]map[string]interface{}, 0)
+	json.Unmarshal(devicesResp, &arrayObjs)
+	fmt.Printf("The response held:%v values.", len(arrayObjs))
+	fmt.Scanln(&input)
+	for k, v := range arrayObjs {
+		fmt.Printf("%v: %s\n", k, v["name"])
+	}
+
+	// fmt.Println(ByteSlice(devicesResp))
+	// jsonAttemp := JSONtoMap(ByteSlice(devicesResp))
+	// fmt.Printf("The response is now of type: %s\n", reflect.TypeOf(jsonAttemp))
 
 	/* Pause */
-	var input string
 	fmt.Scanln(&input)
 
 	// SSE begins here
@@ -172,6 +187,6 @@ func main() {
 			}
 		}
 	}()
-
+	// wait for input
 	fmt.Scanln(&input)
 }
