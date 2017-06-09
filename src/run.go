@@ -147,10 +147,6 @@ func main() {
 		fmt.Printf("%v: %s\n", k, v["name"])
 	}
 
-	// fmt.Println(ByteSlice(devicesResp))
-	// jsonAttemp := JSONtoMap(ByteSlice(devicesResp))
-	// fmt.Printf("The response is now of type: %s\n", reflect.TypeOf(jsonAttemp))
-
 	/* Pause */
 	fmt.Scanln(&input)
 
