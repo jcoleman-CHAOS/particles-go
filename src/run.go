@@ -33,6 +33,12 @@ type GenericSensor struct {
 	PublishRate int64 //milliseconds
 }
 
+// AllParticlesMeta is an example of what a meta data obj might look like
+type AllParticlesMeta struct {
+	numParticles int
+	numConnected int
+}
+
 func readLines(path string) ([]string, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -76,9 +82,10 @@ func urlResp(url string) []byte {
 	return body
 }
 
+// ByteSlice is a ...
 func ByteSlice(b []byte) []byte { return b }
 
-// This needs to be tested!
+// JSONtoMap This needs to be tested!
 func JSONtoMap(b []byte) map[string]interface{} {
 	m := make(map[string]interface{})
 	s := string(b[1 : len(b)-1])
@@ -139,12 +146,12 @@ func main() {
 	var input string
 	// check devices
 	devicesResp := allParticlesCurl(settings["api-key"])
-	arrayObjs := make([]map[string]interface{}, 0)
-	json.Unmarshal(devicesResp, &arrayObjs)
-	fmt.Printf("The response held:%v values.", len(arrayObjs))
+	allParticles := make([]map[string]interface{}, 0)
+	json.Unmarshal(devicesResp, &allParticles)
+	fmt.Printf("The response held: %v values.", len(allParticles))
 	fmt.Scanln(&input)
-	for k, v := range arrayObjs {
-		fmt.Printf("%v: %s\n", k, v["name"])
+	for k, v := range allParticles {
+		fmt.Printf("%v %s %s\n", k, v["name"], v["id"])
 	}
 
 	/* Pause */
