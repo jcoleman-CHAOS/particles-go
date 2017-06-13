@@ -82,9 +82,6 @@ func urlResp(url string) []byte {
 	return body
 }
 
-// ByteSlice is a ...
-func ByteSlice(b []byte) []byte { return b }
-
 // JSONtoMap This needs to be tested!
 func JSONtoMap(b []byte) map[string]interface{} {
 	m := make(map[string]interface{})
@@ -148,12 +145,30 @@ func main() {
 	devicesResp := allParticlesCurl(settings["api-key"])
 	allParticles := make([]map[string]interface{}, 0)
 	json.Unmarshal(devicesResp, &allParticles)
-	fmt.Printf("The response held: %v values.", len(allParticles))
+
+	_particles := AllParticlesMeta{numParticles: len(allParticles)}
+	fmt.Printf("The response held: %v values.", _particles.numParticles)
+
 	fmt.Scanln(&input)
-	for k, v := range allParticles {
-		fmt.Printf("%v %s %s\n", k, v["name"], v["id"])
+	for _, v := range allParticles {
+		if v["connected"] == true {
+			_particles.numConnected++
+		}
+
 	}
 
+	fmt.Printf("\nThere are %v particles connected...\n ", _particles.numConnected)
+	/* Pause */
+	fmt.Scanln(&input)
+
+	for _, v := range allParticles {
+		if v["connected"] == true {
+			fmt.Printf("%s %s\n", v["name"], v["id"])
+		}
+
+	}
+
+	fmt.Println("\nBeginning SSE Client")
 	/* Pause */
 	fmt.Scanln(&input)
 
