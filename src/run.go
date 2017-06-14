@@ -116,6 +116,7 @@ func allParticlesCurl(token string) []byte {
 func combineEventAndData(se string, sd string) map[string]interface{} {
 	m := make(map[string]interface{})
 	m["event"] = se
+	sortEvent(m["event"].(string))
 	err := json.Unmarshal([]byte(sd), &m)
 	if err != nil {
 		if err.Error() == "unexpected end of JSON input" {
@@ -126,6 +127,18 @@ func combineEventAndData(se string, sd string) map[string]interface{} {
 		}
 	}
 	return m
+}
+
+func sortEvent(event string) {
+	fmt.Println(event)
+	switch {
+	case strings.Contains(event, " ") && strings.Contains(event, ","):
+		fmt.Println("There was a SPACE and comma!")
+	case strings.Contains(event, " "):
+		fmt.Println("There was a SPACE!")
+	default:
+		fmt.Println("We don't know the units")
+	}
 }
 
 func main() {
@@ -186,6 +199,7 @@ func main() {
 	go client.Subscribe("messages", func(msg *sse.Event) {
 		if msg.Event != nil {
 			SSEresp <- string(msg.Event)
+			SSEchanIsReady <- false
 			counter = 0
 		} else if msg.Data != nil {
 			SSEresp <- string(msg.Data)
@@ -200,7 +214,7 @@ func main() {
 				fmt.Println("\n***")
 				res := combineEventAndData(<-SSEresp, <-SSEresp)
 				for k, v := range res {
-					fmt.Printf("%s: %s\n", k, v)
+					fmt.Printf("%s: %v\n", k, v)
 				}
 			}
 		}
