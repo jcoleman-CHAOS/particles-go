@@ -5,18 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
+	"github.com/influxdata/influxdb/client/v2"
 	"github.com/r3labs/sse"
 )
-
-//InfluxWriteString values.
-type InfluxWriteString struct {
-	// Must conform to:
-	// weather,location=us-midwest,season=summer temperature=82 1465839830100400200
-}
 
 //GenericSensor struct.
 type GenericSensor struct {
@@ -82,26 +80,12 @@ func urlResp(url string) []byte {
 	return body
 }
 
-// JSONtoMap This needs to be tested!
-func JSONtoMap(b []byte) map[string]interface{} {
-	m := make(map[string]interface{})
-	s := string(b[1 : len(b)-1])
-	fmt.Println(s)
-	err := json.Unmarshal([]byte(s), &m)
-	if err != nil {
-		if err.Error() == "unexpected end of JSON input" {
-			// pass
-		} else {
-			panic(err)
-		}
-	}
-	return m
-}
-
 func iterMap(m map[string]interface{}) {
 	for k, v := range m {
-		fmt.Printf("%s: %s", k, v)
+		fmt.Printf("\n%s: %v", k, v)
+		// fmt.Printf("\n%s is type %T: %v is type %T", k, k, v, v)
 	}
+	fmt.Println("\n ")
 }
 
 func allParticlesCurl(token string) []byte {
@@ -130,20 +114,58 @@ func combineEventAndData(se string, sd string) map[string]interface{} {
 }
 
 func sortEvent(event string) {
-	fmt.Println(event)
+	// fmt.Println(event)
 	switch {
 	case strings.Contains(event, " ") && strings.Contains(event, ","):
-		fmt.Println("There was a SPACE and comma!")
+		fmt.Println("CASE 3")
 	case strings.Contains(event, " "):
-		fmt.Println("There was a SPACE!")
+		fmt.Println("CASE 1")
 	default:
-		fmt.Println("We don't know the units")
+		fmt.Println("UNKNOWN units")
 	}
 }
 
+func stringifyTagset(m map[string]string) string {
+	S := make([]string, 0)
+	var x string
+	for k, v := range m {
+		x = strings.Join([]string{k, "=", v}, "")
+		S = append(S, x)
+	}
+	return strings.Join(S, ",")
+}
+
+// Use map to generate influx line protocol string
+func marshalInfluxLP(m map[string]interface{}, tagset map[string]string, measurement string) {
+	// "particles,
+	// event=temperature,experiment=CISBAT,location=Archlab,label=thatOne,sample_rate=1000,unit=c
+	// value=10e9 0000000000000000000"
+	tagsetString := stringifyTagset(tagset)
+	var t time.Time
+	var UnixString string
+	err := t.UnmarshalText([]byte(m["published_at"].(string)))
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		UnixString = strconv.Itoa(int(t.UnixNano()))
+	}
+	s := strings.Join([]string{
+		measurement, ",",
+		tagsetString, " ",
+		m["data"].(string), " ",
+		UnixString,
+	}, "")
+	fmt.Println("\n" + s)
+}
+
+func eventCase1() {
+	// pass
+}
+
+/* MAIN FUNCTION */
 func main() {
 	// Where the config file is
-	credPath := "/Users/eat_sleep_live_skateboarding/Code/go/credentials.txt"
+	credPath := "/Users/eat_sleep_live_skateboarding/Code/go/particle-sse/credentials.txt"
 
 	// The SSE url
 	sseURL := "https://api.particle.io/v1/devices/events?access_token="
@@ -151,7 +173,41 @@ func main() {
 	// parse values from config
 	_map, _ := readLines(credPath)
 	settings := parseCreds(_map)
-	fmt.Println(settings)
+
+	// Set credentials
+	username, ok := settings["user"]
+	if ok == false {
+		panic("no USER set in config file!")
+	}
+	password, ok := settings["password"]
+	if ok == false {
+		panic("no PASSWORD set in config file!")
+	}
+	database, ok := settings["database"]
+	if ok == false {
+		panic("no DATABASE set in config file!")
+	}
+	measurement, ok := settings["measurement"]
+	if ok == false {
+		panic("no MEASUREMENT set in config file!")
+	}
+	// Create a new HTTPClient
+	c, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr:     "http://localhost:8086",
+		Username: username,
+		Password: password,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Create a new point batch
+	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
+		Database:  database,
+		Precision: "s",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	var input string
 	// check devices
@@ -178,7 +234,6 @@ func main() {
 		if v["connected"] == true {
 			fmt.Printf("%s %s\n", v["name"], v["id"])
 		}
-
 	}
 
 	fmt.Println("\nBeginning SSE Client")
@@ -208,14 +263,19 @@ func main() {
 		}
 	})
 
+	//
 	go func() {
 		for {
 			if <-SSEchanIsReady {
 				fmt.Println("\n***")
 				res := combineEventAndData(<-SSEresp, <-SSEresp)
-				for k, v := range res {
-					fmt.Printf("%s: %v\n", k, v)
+				tagset := map[string]string{
+					"id":    res["coreid"].(string),
+					"event": res["event"].(string),
 				}
+				fmt.Println(res["published_at"])
+				marshalInfluxLP(res, tagset, measurement)
+				// iterMap(res)
 			}
 		}
 	}()
