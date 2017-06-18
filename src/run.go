@@ -16,6 +16,10 @@ import (
 	"github.com/r3labs/sse"
 )
 
+const (
+	value = "value"
+)
+
 //GenericSensor struct.
 type GenericSensor struct {
 	label string
@@ -135,20 +139,27 @@ func stringifyTagset(m map[string]string) string {
 	return strings.Join(S, ",")
 }
 
+func TextToTime(timeString string) (time.Time, string) {
+	var t time.Time
+	var UnixString string
+	err := t.UnmarshalText([]byte(timeString))
+	if err != nil {
+		fmt.Println(err)
+		UnixString = "ERROR unmarshalling time object"
+	} else {
+		UnixString = strconv.Itoa(int(t.UnixNano()))
+	}
+	return t, UnixString
+}
+
 // Use map to generate influx line protocol string
 func marshalInfluxLP(m map[string]interface{}, tagset map[string]string, measurement string) {
 	// "particles,
 	// event=temperature,experiment=CISBAT,location=Archlab,label=thatOne,sample_rate=1000,unit=c
 	// value=10e9 0000000000000000000"
 	tagsetString := stringifyTagset(tagset)
-	var t time.Time
-	var UnixString string
-	err := t.UnmarshalText([]byte(m["published_at"].(string)))
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		UnixString = strconv.Itoa(int(t.UnixNano()))
-	}
+	_, UnixString := TextToTime(m["published_at"].(string))
+	// fields := map[string]string{value: m["data"].(string)}
 	s := strings.Join([]string{
 		measurement, ",",
 		tagsetString, " ",
@@ -200,14 +211,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Create a new point batch
-	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
-		Database:  database,
-		Precision: "s",
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	var input string
 	// check devices
@@ -250,8 +253,8 @@ func main() {
 	SSEchanIsReady := make(chan bool)
 
 	// SSEres := make(map[string]interface{})
-	client := sse.NewClient(sseURL)
-	go client.Subscribe("messages", func(msg *sse.Event) {
+	sseClient := sse.NewClient(sseURL)
+	go sseClient.Subscribe("messages", func(msg *sse.Event) {
 		if msg.Event != nil {
 			SSEresp <- string(msg.Event)
 			SSEchanIsReady <- false
@@ -273,8 +276,32 @@ func main() {
 					"id":    res["coreid"].(string),
 					"event": res["event"].(string),
 				}
-				fmt.Println(res["published_at"])
+				fields := map[string]interface{}{value: res["data"].(string)}
+				publishedAt, publishedAtString := TextToTime(res["published_at"].(string))
+				fmt.Println(publishedAtString)
 				marshalInfluxLP(res, tagset, measurement)
+
+				// Create a new point batch
+				bp, err := client.NewBatchPoints(client.BatchPointsConfig{
+					Database:  database,
+					Precision: "s",
+				})
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				// this will eventually loop if there were encoded points
+				// Create a point and add to batch
+				pt, err := client.NewPoint(measurement, tagset, fields, publishedAt)
+				if err != nil {
+					log.Fatal(err)
+				}
+				bp.AddPoint(pt)
+
+				// Write the batch
+				if err := c.Write(bp); err != nil {
+					log.Fatal(err)
+				}
 				// iterMap(res)
 			}
 		}
