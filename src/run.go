@@ -255,13 +255,34 @@ func main() {
 	// SSEres := make(map[string]interface{})
 	sseClient := sse.NewClient(sseURL)
 	go sseClient.Subscribe("messages", func(msg *sse.Event) {
-		if msg.Event != nil {
+		// we need to erase the event channel if we receive a new event
+		if msg.Event != nil && msg.Data != nil { // you got both in one package
+			// testEvent := string(msg.Event)
+			// testData := string(msg.Data)
 			SSEresp <- string(msg.Event)
 			SSEchanIsReady <- false
-			counter = 0
-		} else if msg.Data != nil {
 			SSEresp <- string(msg.Data)
+			// fmt.Println("EVENT queued")
+			// fmt.Println(testEvent)
+			// fmt.Println("DATA queued")
+			// fmt.Println(testData)
+			SSEchanIsReady <- true
+		} else if msg.Event != nil {
+			// test := string(msg.Event)
+			if counter == 1 { // the previous event had no data clear the channel
+				<-SSEresp
+			} // then move onto the next one
+			SSEresp <- string(msg.Event)
+			SSEchanIsReady <- false
+			// fmt.Println("EVENT queued")
+			// fmt.Println(test)
 			counter = 1
+		} else if msg.Data != nil {
+			// test := string(msg.Data)
+			SSEresp <- string(msg.Data)
+			counter = 0
+			// fmt.Println("DATA queued")
+			// fmt.Println(test)
 			SSEchanIsReady <- true
 		}
 	})
@@ -302,6 +323,7 @@ func main() {
 				if err := c.Write(bp); err != nil {
 					log.Fatal(err)
 				}
+				fmt.Println("Wrote point")
 				// iterMap(res)
 			}
 		}
